@@ -1,0 +1,10 @@
+build
+environment
+dist
+*.sw?
+.eggs
+*.webm
+./resources/*.webm
+*.exe
+.idea
+__pycache__
