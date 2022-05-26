@@ -657,13 +657,13 @@ class ExpApp(QMainWindow):
                 noti_open.setFixedSize(758, 50)
                 noti_open.clicked.connect(notification.open_settings)
 
-                type_student_id_text = QLabel('Type your Participation ID below.')
+                type_student_id_text = QLabel('Type your Name below.')
                 type_student_id_text.setFixedHeight(75)
 
                 self.user_id = QLineEdit(self)
                 self.user_id.setFixedSize(758, 50)
                 self.user_id.setAlignment(Qt.AlignCenter)
-                self.user_id.setValidator(QIntValidator())
+                self.user_id.setValidator(QRegExpValidator(QRegExp("[A-Za-z0-9]+")))  # QIntValidator()
 
                 self.noti_proceed = QPushButton('Next')
                 self.noti_proceed.setFixedSize(758, 50)
@@ -978,10 +978,10 @@ class ExpApp(QMainWindow):
         self.video_frame.setFixedHeight(self.rect().height() - 30)
 
         # Sort URL w.r.t. Student ID
-        random.seed(self.user_id.text())
-        target = self.videos[1:]
-        random.shuffle(target)
-        self.videos[1:] = target
+        # random.seed(self.user_id.text())
+        # target = self.videos[1:]
+        # random.shuffle(target)
+        # self.videos[1:] = target
         self.log(f'videos,{self.videos}')
 
         self.ellipse_button.setFixedSize(self.calib_r * 2, self.calib_r * 2)
