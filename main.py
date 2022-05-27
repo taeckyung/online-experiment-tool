@@ -1,116 +1,41 @@
-import functools
-
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-
-from pynput import mouse, keyboard
+import dlib
 import cv2
 
-from multiprocessing import Event, freeze_support, SimpleQueue, Value
+from multiprocessing import Event, freeze_support, SimpleQueue
 from imutils import face_utils
 from threading import Thread
 from enum import Enum, auto
+import functools
 import traceback
 import imutils
 import shutil
-import random
 import signal
-import dlib
 import time
 import sys
 import os
 
 from typing import List, Tuple
 
-from utils import vlc, camera, sound, notification, parsing
+from utils import *
 
 
-def getResource(name):
-    if sys.platform=="darwin":
-        return name
-    else:
-        return "./resources/"+name
-
-def getTime(time_now, total):
+def get_time(time_now, total):
     return time_now//60, time_now % 60, total//60, total % 60
-
-
-class UIUpdater(QThread):
-    signal = pyqtSignal()
-
-    def __init__(self, frame: QFrame, player: vlc.MediaPlayer, time_label: QLabel, time_text: str,
-                 video_label: QLabel, video_text: str, next_button: QPushButton, is_end=False):
-        super().__init__()
-        self.event = Event()
-        self.probeEvent = Event()
-        self.closeEvent = Event()
-        self.frame = frame
-        self.player = player
-        self.time_text = time_text
-        self.time_label = time_label
-        self.video_text = video_text
-        self.video_label = video_label
-        self.next_button = next_button
-        # self.quiz_url = quiz_url
-        self.is_end = is_end
-
-    def execute(self):
-        self.event.set()
-
-    def finish(self, timeout=None):
-        self.event.clear()
-        self.closeEvent.wait(timeout)
-
-    def alertProbeRunnerFinished(self):
-        self.probeEvent.set()
-
-    def run(self) -> None:
-        self.event.wait()
-
-        while self.player.get_state() != vlc.State(3):
-            time.sleep(0.1)
-        total_length = self.player.get_length() // 1000
-
-        while True:
-            try:
-                if not (self.player.get_state() != vlc.State(6) and self.event.is_set()):
-                    break
-            except Exception as e:
-                print(str(e), flush=True)
-                break
-
-            time_now = self.player.get_time()
-            self.time_label.setText(self.time_text % getTime(int(time_now / 1000), total_length))
-            time.sleep(0.5)
-
-        # Wait for ProbeRunner
-        self.probeEvent.wait()
-        self.player.release()
-
-        self.video_label.setText(self.video_text)
-        self.time_label.setText(self.time_text % (0, 0, 0, 0))
-        # if self.event.is_set():  # Normal ending with video finished
-        #     os.system(f"start {self.quiz_url}")
-        self.next_button.setEnabled(True)
-
-        if self.is_end:
-            self.signal.emit()
-        self.closeEvent.set()
 
 
 class ProbeRunner(QThread):
     signal = pyqtSignal()
     ui_signal = pyqtSignal()
 
-    def __init__(self, queue: SimpleQueue, player: vlc.MediaPlayer, video: str, is_demo=False):
+    def __init__(self, queue: SimpleQueue, name: str):
         super().__init__()
         self.event = Event()
         self.end_event = Event()
         self.queue = queue
-        self.player = player
-        self.video = video
-        self.is_demo: bool = is_demo
+        self.name = name
 
     def execute(self):
         self.event.set()
@@ -120,12 +45,8 @@ class ProbeRunner(QThread):
         self.end_event.wait(timeout=timeout)
 
     def run(self) -> None:
-        output = open(os.path.join(BASE_PATH, "probe_%s.txt" % self.video), 'w', buffering=1, encoding='UTF-8')
-
         self.event.wait()
 
-        padding = 5000  # ms
-        interval = 40000  # ms
         max_response = 10  # s
 
         clock_before = 0
@@ -135,238 +56,33 @@ class ProbeRunner(QThread):
         last_probe = None
         added = True
 
-        while self.player.get_state() != vlc.State(3):
-            time.sleep(0.1)
-
         while True:
-            try:
-                if not (self.player.get_state() != vlc.State(6) and self.event.is_set()):
-                    break
-            except Exception as e:
-                output.write(str(e) + '\n')
-                break
-
-            time_now = self.player.get_time()
             clock_now = time.time()
 
             # Play ding sound
-            if (time_now - padding) // interval > idx_before:
-                sound.play(getResource("Ding-sound-effect.mp3"))
-                output_str += "%f,%f,sound\n" % (time_now, clock_now)
+            if (clock_now % 40) < 5. and (clock_now - clock_before) > 20.:
+                sound.play(get_resource("Ding-sound-effect.mp3"))
+                output_str += "%f,sound\n" % clock_now
                 idx_before += 1
                 clock_before = clock_now
                 last_probe = None
                 added = False
 
-            # Check demo: Alert if no probing in 10 sec
-            if self.is_demo and (last_probe is None) and (not added) and (clock_now - clock_before >= max_response):
-                self.signal.emit()
-                added = True
+            # Give 10 seconds padding for report
+            if (clock_now - clock_before) > 10:
+                while not self.queue.empty():
+                    e: Tuple[float, str] = self.queue.get()
+                    if 0. <= e[0] - clock_before < max_response:
+                        if last_probe is not None and last_probe[1] != e[1]:  # drop when user type different responses
+                            last_probe = None
+                        else:
+                            last_probe = e
+                if last_probe is not None and not added:
+                    output_str += "%f,%f,probe,%s\n" % (clock_before, last_probe[0], last_probe[1])
+                    added = True
 
-            while not self.queue.empty():
-                e: Tuple[float, str] = self.queue.get()
-                if 0. <= e[0] - clock_before < max_response:
-                    if last_probe is not None and last_probe[1] != e[1]:  # drop when user type different responses
-                        continue
-                    last_probe = e
-            if last_probe is not None and not added:
-                output_str += "%f,%f,probe,%s\n" % (time_now, last_probe[0], last_probe[1])
-                added = True
-
-        self.ui_signal.emit()
-        output.write(output_str)
-        output.close()
-        self.end_event.set()
-
-
-class VideoRecorder(Thread):
-    def __init__(self, cam: int):
-        super().__init__()
-        self.event = Event()
-        self.proceed_event = Event()
-        self.cam = cam
-        self.video_timeline = None
-        self.video_cap = None
-        self.video_out = None
-        self.val = Value('i', 0, lock=True)
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTERM, self.signal_handler)
-
-    def signal_handler(self, sig, frame):
-        if sig == signal.SIGINT:
-            traceback.print_stack(frame)
-            print("SIGINT FROM CHILD!", flush=True)
-
-        self.output.close()
-        if self.video_cap is not None:
-            self.video_out.release()
-
-        self.event.set()
-        sys.exit(0)
-
-    def execute(self):
-        self.event.set()
-        self.proceed_event.wait()
-
-    def finish(self, timeout=None):
-        self.event.clear()
-        self.event.wait(timeout=timeout)
-
-    def setFrameCount(self):
-        with self.val.get_lock():
-            self.val.value = 0
-
-    def getFrameCount(self):
-        return self.val.value
-
-    def run(self) -> None:
-        self.output = open(os.path.join(BASE_PATH, "video_timeline.txt"), 'w', buffering=1, encoding='UTF-8')
-        if sys.platform=="darwin":
-            self.video_cap = cv2.VideoCapture(self.cam)
-        else:
-            self.video_cap = cv2.VideoCapture(self.cam, cv2.CAP_DSHOW)
-        self.video_cap.set(cv2.CAP_PROP_FPS, 30)
-        
-        size = (int(self.video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                int(self.video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-
-        assert(self.video_cap.isOpened())
-        
-        fourcc = cv2.VideoWriter_fourcc(*'mpeg')
-        self.video_out = cv2.VideoWriter(os.path.join(BASE_PATH, "recording.mp4"), fourcc, 30.0, size)
-        self.event.wait()
-        self.proceed_event.set()
-        while self.event.is_set():
-            ret, frame = self.video_cap.read()
-            curr_time = time.time()
-            if ret and frame is not None:
-                self.video_out.write(frame)
-                self.output.write("%f\n" % curr_time)
-                with self.val.get_lock():
-                    self.val.value += 1
-        self.output.write("%f,end" % time.time())
-        self.video_out.release()
-        cv2.destroyAllWindows()
-        self.output.close()
-        self.event.set()
-
-
-class ActivityRecorder(Thread):
-    def __init__(self, queue: SimpleQueue, name: str):
-        super().__init__()
-        self.event = Event()
-        self.finishEvent = Event()
-        self.queue = queue
-        self.name = name
-        self.mouse_listener = mouse.Listener(
-            on_move=self.onMouseMove,
-            on_click=self.onMouseClick,
-            on_scroll=self.onMouseScroll
-        )
-        self.keyboard_listener = keyboard.Listener(
-            on_press=self.onKeyPress,
-            on_release=self.onKeyRelease
-        )
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTERM, self.signal_handler)
-
-    def signal_handler(self, sig, frame):
-        try:
-            self.keyboard_listener.stop()
-            self.mouse_listener.stop()
-        except Exception as e:
-            print(e)
-
-        try:
-            self.keyboard_output.close()
-            self.mouse_output.close()
-        except Exception as e:
-            print(e)
-
-        if sig == signal.SIGINT:
-            traceback.print_stack(frame)
-            print("SIGINT FROM CHILD!", flush=True)
-
-        sys.exit(0)
-
-    def execute(self):
-        self.event.set()
-
-    def finish(self, timeout=None):
-        self.event.set()
-        self.finishEvent.wait(timeout=timeout)
-
-    def key_log(self, string: str):
-        self.keyboard_output.write("%f,%s\n" % (time.time(), string))
-
-    def mouse_log(self, string: str):
-        self.mouse_output.write("%f,%s\n" % (time.time(), string))
-
-    def onMouseMove(self, x, y):
-        self.mouse_log("mouse,move,%d,%d" % (x, y))
-
-    def onMouseClick(self, x, y, button, pressed):
-        self.mouse_log("mouse,click,%s,%d,%d,%d" % (button, pressed, x, y))
-
-    def onMouseScroll(self, x, y, dx, dy):
-        self.mouse_log("mouse,scroll,%d,%d,%d,%d" % (x, y, dx, dy))
-
-    def onKeyPress(self, key):
-        if isinstance(key, keyboard.KeyCode):
-            if key in [keyboard.KeyCode.from_char('f'), keyboard.KeyCode.from_char('F'), keyboard.KeyCode.from_char('ㄹ'),
-                       keyboard.KeyCode.from_char('n'), keyboard.KeyCode.from_char('N'), keyboard.KeyCode.from_char('ㅜ')]:
-                self.key_log("key,press,%s" % str(key))
-
-    def onKeyRelease(self, key):
-        curr_time = time.time()
-        if isinstance(key, keyboard.KeyCode):
-            if key in [keyboard.KeyCode.from_char('f'), keyboard.KeyCode.from_char('F'), keyboard.KeyCode.from_char('ㄹ')]:
-                self.queue.put((curr_time, 'y'))
-                sound.play(getResource("Keyboard.mp3"))
-                self.key_log("key,release,%s" % str(key))
-            elif key in [keyboard.KeyCode.from_char('n'), keyboard.KeyCode.from_char('N'), keyboard.KeyCode.from_char('ㅜ')]:
-                self.queue.put((curr_time, 'n'))
-                sound.play(getResource("Keyboard.mp3"))
-                self.key_log("key,release,%s" % str(key))
-        elif key == keyboard.Key.space:
-            self.queue.put((curr_time, 'p'))
-            sound.play(getResource("Keyboard.mp3"))
-            self.key_log("key,release,%s" % str(key))
-
-    def run(self) -> None:
-
-        self.mouse_output = open(os.path.join(BASE_PATH, "mouse_log_%s.txt" % self.name), 'w', buffering=1, encoding='UTF-8')
-        self.keyboard_output = open(os.path.join(BASE_PATH, "keyboard_log_%s.txt" % self.name), 'w', buffering=1, encoding='UTF-8')
-        '''
-        self.mouse_listener = mouse.Listener(
-            on_move=self.onMouseMove,
-            on_click=self.onMouseClick,
-            on_scroll=self.onMouseScroll
-        )
-        print(2)
-        self.keyboard_listener = keyboard.Listener(
-            on_press=self.onKeyPress,
-            on_release=self.onKeyRelease
-        )
-        print(3)
-        #signal.signal(signal.SIGINT, self.signal_handler)
-        #signal.signal(signal.SIGTERM, self.signal_handler)
-        '''
-        self.event.wait()
-
-        self.mouse_listener.start()
-        self.keyboard_listener.start()
-
-        self.event.clear()
-        self.event.wait()
-
-        self.mouse_listener.stop()
-        self.keyboard_listener.stop()
-
-        self.mouse_output.close()
-        self.keyboard_output.close()
-
-        self.finishEvent.set()
+                    with open(os.path.join(BASE_PATH, "probe_%s.txt" % self.name), 'w', encoding='UTF-8') as f:
+                        f.write(output_str)
 
 
 def proceedFunction(state_before, state_after):
@@ -507,21 +223,19 @@ class ExpApp(QMainWindow):
                     save_idx += 1
                     output_name = output_name.split("(")[0] + ("(%d)" % save_idx)
                 shutil.make_archive(output_name, 'zip', "./%s/"%BASE_PATH)
-
-            
-            output_name = os.path.join("./", "output_user_%s" % self.user_id.text())
-            save_idx = 0
-            while os.path.isfile(output_name+".zip"):
-                save_idx += 1
-                output_name = output_name.split("(")[0] + ("(%d)" % save_idx)
-            shutil.make_archive(output_name, 'zip', "./%s/"%BASE_PATH)
-            #shutil.make_archive(os.path.join("./", "output_user_%s" % self.user_id.text()), 'zip', "./output/")
+            else:
+                output_name = os.path.join("./", "output_user_%s" % self.user_id.text())
+                save_idx = 0
+                while os.path.isfile(output_name+".zip"):
+                    save_idx += 1
+                    output_name = output_name.split("(")[0] + ("(%d)" % save_idx)
+                shutil.make_archive(output_name, 'zip', "./%s/"%BASE_PATH)
         except Exception as e:
             self.log(str(e))
 
         self.output.close()
 
-        # os.system("start https://forms.gle/UUVqMUMvwvGFKSet6")
+        # os.system("start https://forms.gle/1111")
         # taskbar.unhide_taskbar()
         sys.exit(0)
 
@@ -570,7 +284,7 @@ class ExpApp(QMainWindow):
 
             self.videoRecorder = None
 
-            self.activityRecorder = ActivityRecorder(self.probeQueue, "Main")
+            self.activityRecorder = ActivityRecorder(BASE_PATH, self.probeQueue, "Main")
             self.activityRecorder.daemon = True
             self.activityRecorder.start()
             self.activityRecorder.execute()  # Start recording keyboard & mouse
@@ -579,7 +293,7 @@ class ExpApp(QMainWindow):
         if True:
             self.setWindowTitle('Online Experiment Application')
             #self.setWindowIcon(QIcon('resources/nmsl_logo_yellow.png'))
-            self.setWindowIcon(QIcon(getResource('nmsl_logo_yellow.png')))
+            self.setWindowIcon(QIcon(get_resource('nmsl_logo_yellow.png')))
 
             self.widget = QStackedWidget(self)
             self.distraction_instruction_widget = QWidget(self)
@@ -651,7 +365,7 @@ class ExpApp(QMainWindow):
                 noti_image = QLabel(self)
                 noti_image.setFixedSize(758, 270)
                 #noti_image.setPixmap(QPixmap("./resources/focus_assistant.png"))
-                noti_image.setPixmap(QPixmap(getResource("focus_assistant.png")))
+                noti_image.setPixmap(QPixmap(get_resource("focus_assistant.png")))
 
                 noti_open = QPushButton('Open Settings (Only Windows)')
                 noti_open.setFixedSize(758, 50)
@@ -728,18 +442,17 @@ class ExpApp(QMainWindow):
                 instruction_layout = QVBoxLayout(self)
 
                 lecture_text = QLabel(
-                    'Now, you will watch one short + one long lecture.\n\n'
                     '-----------------------------------------IMPORTANT-----------------------------------------\n\n'
                     'During the experiment, please avoid moving laptop or touching eyeglasses.\n\n'
                     'During the lecture, you will periodically hear the "beep" sound.\n\n'
                     'When you hear the sound, based on your state JUST BEFORE hearing the sound:\n\n'
                     '- Press [F]: if you were Focusing (thinking of anything related to the lecture)\n\n'
                     '- Press [N]: if you were NOT focusing (thinking or doing something unrelated to the lecture)\n\n'
-                    '- Press [SpaceBar]: if you cannot decide\n\n'
-                    'Please report as promptly and honestly as you can; your report will NOT affect your monetary reward.\n\n'
+                    '- DO NOT PRESS: if you cannot decide\n\n'
                     'If you pressed the wrong key, then just press again.\n\n\n'
                     '----------------------------------------------------------------------------------------------------\n\n'
-                    'Please adjust your system volume to make sure you hear the beep sound.',
+                    'Please adjust your system volume to make sure you hear the beep sound.\n\n'
+                    'Proceed when you are ready.',
                     self
                 )
                 lecture_text.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
@@ -750,7 +463,7 @@ class ExpApp(QMainWindow):
 
                 def launch_beep():
                     #sound.play("./resources/Ding-sound-effect.mp3")
-                    sound.play(getResource("Ding-sound-effect.mp3"))
+                    sound.play(get_resource("Ding-sound-effect.mp3"))
                     
                 beep_button.clicked.connect(launch_beep)
 
@@ -862,15 +575,28 @@ class ExpApp(QMainWindow):
                 waiting_layout = QVBoxLayout(self)
 
                 lecture_text = QLabel(
-                    'Please press the button AFTER the meeting ends!',
+                    'From now, you can minimize the current screen.\n\n\n'
+                    '-----------------------------------------IMPORTANT-----------------------------------------\n\n'
+                    '- Press [F]: if you were Focusing (thinking of anything related to the lecture)\n\n'
+                    '- Press [N]: if you were NOT focusing (thinking or doing something unrelated to the lecture)\n\n'
+                    '- DO NOT PRESS: if you cannot decide\n\n'
+                    'If you pressed the wrong key, then just press again.\n\n\n'
+                    '------------------------------------------IF ENDS------------------------------------------\n\n'
+                    'Please press the button AFTER the meeting ends!\n\n',
                     self
                 )
                 lecture_text.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
                 lecture_text.setContentsMargins(10, 10, 10, 10)
+                font: QFont = lecture_text.font()
+                font.setFamily('Roboto')
+                font.setPixelSize(20)
+                font.setBold(True)
+                lecture_text.setFont(font)
+
                 waiting_layout.addWidget(lecture_text, alignment=Qt.AlignBottom|Qt.AlignHCenter)
                 waiting_layout.stretch(1)
 
-                start_button = QPushButton('Next\n(Please Wait)', self)
+                start_button = QPushButton('PRESS WHEN MEETING ENDS', self)
                 start_button.setFixedSize(758, 50)
                 start_button.clicked.connect(self.proceed)
                 waiting_layout.addWidget(start_button, alignment=Qt.AlignTop|Qt.AlignHCenter)
@@ -1108,7 +834,7 @@ class ExpApp(QMainWindow):
         frame_thread.join()
         cap.release()
         # Start recording
-        self.videoRecorder = VideoRecorder(self.camera)
+        self.videoRecorder = VideoRecorder(BASE_PATH, self.camera)
         #self.videoRecorder.video_cap = cap
         self.videoRecorder.daemon = True
         self.videoRecorder.start()
@@ -1177,6 +903,19 @@ class ExpApp(QMainWindow):
         self.widget.setCurrentWidget(self.waiting_widget)
         self._state = self.State.FINISH
 
+        self.activityRecorder.finish(timeout=5.0)  # Stop recording keyboard & mouse
+        self.activityRecorder.join()
+
+        self.activityRecorder = ActivityRecorder(BASE_PATH, self.probeQueue, "waiting")
+        self.activityRecorder.daemon = True
+        self.activityRecorder.start()
+        self.activityRecorder.execute()
+
+        self.probeRunner = ProbeRunner(self.probeQueue, "waiting")
+        self.probeRunner.daemon = True
+        self.probeRunner.start()
+        self.probeRunner.execute()
+
     def showDialog(self):
         self.media_player.pause()
         self.dialog.show()
@@ -1193,87 +932,7 @@ class ExpApp(QMainWindow):
 
     @proceedFunction([State.DEMO_VIDEO, State.MAIN_VIDEO], None)
     def start_video(self, demo=False):
-        assert (self.videoIndex == 0 or not demo)
-
-        # Initialize UI without starting the video
-        if self.widget.currentWidget() != self.lecture_video_widget:
-            self.widget.setCurrentWidget(self.lecture_video_widget)
-            return
-
-        self.next_button.setDisabled(True)
-
-        if self.videoIndex >= len(self.videos):  # Finish (includes probeRunner cleanup)
-            self.finishVideo()
-            return
-        elif self.videoIndex > 0:
-            self.probeRunner.finish()
-
-        self.media_player = self.instance.media_player_new()
-
-        self.activityRecorder.finish(timeout=5.0)  # Stop recording keyboard & mouse
-        self.activityRecorder.join()
-
-        self.activityRecorder = ActivityRecorder(self.probeQueue, self.videos[self.videoIndex][0])
-        self.activityRecorder.daemon = True
-        self.activityRecorder.start()
-
-        self.updater = UIUpdater(self.video_frame, self.media_player, self.time_label, self.time_text,
-                                 self.video_index_label, (self.video_index_text % (self.videoIndex+2, len(self.videos))),
-                                 self.next_button, is_end=self.videoIndex == len(self.videos)-1)
-        self.updater.daemon = True
-        self.updater.start()
-        self.updater.signal.connect(self.finishVideo)
-
-        self.probeRunner = ProbeRunner(self.probeQueue, self.media_player, self.videos[self.videoIndex][0], demo)
-        self.probeRunner.daemon = True
-        self.probeRunner.start()
-        self.probeRunner.signal.connect(self.showDialog)
-        self.probeRunner.ui_signal.connect(self.updater.alertProbeRunnerFinished)
-
-        url = parsing.get_best_url(self.videos[self.videoIndex][1])
-        # url = self.videos[self.videoIndex][1]
-        self.log("url,%s" % url)
-        try:
-            media = self.instance.media_new(url)
-            self.media_player.set_media(media)
-            if sys.platform.startswith('linux'):  # for Linux using the X Server
-                self.media_player.set_xwindow(self.video_frame.winId())
-            elif sys.platform == "win32":  # for Windows
-                self.media_player.set_hwnd(self.video_frame.winId())
-            elif sys.platform == "darwin":  # for MacOS
-                self.media_player.set_nsobject(int(self.video_frame.winId()))
-
-            self.activityRecorder.execute()  # Start recording keyboard & mouse
-            self.probeRunner.execute()  # Start sound player
-            self.updater.execute()  # Start UI updater
-            self.video_frame.show()
-
-            pw, ph = self.getScreenSize()
-            #dpi = screen.physicalDotsPerInch()
-            #full_screen = screen.size()
-            #width_scale = float(full_screen.width())/960.0
-            #height_scale = float(full_screen.height())/540.0
-            width_scale = float(pw)/960.0
-            height_scale = float(ph)/540.0
-            scale = min(width_scale, height_scale)
-            #self.log("Screen resolution: %d x %d" %(full_screen.width(), full_screen.height()))
-            #self.log("Width scale: %f\nHeight scale: %f\nFinalized scale: %f" %(width_scale, height_scale, scale))
-            #self.media_player.video_set_scale(min(float(full_screen.width())/960.0, float(full_screen.height())/540.0))
-            self.media_player.video_set_scale(scale)
-            if self.media_player.play() < 0:  # Failed to play the media
-                self.log("play,%s,Fail" % self.videos[self.videoIndex][0])
-            else:
-                self.log("play,%s,Start" % self.videos[self.videoIndex][0])
-                
-                while(self.media_player.get_state() != vlc.State.Playing):
-                    time.sleep(0.1)
-                self.showFullScreen()
-        except Exception as e:
-            self.log("play,%s,Fail,%s" % (self.videos[self.videoIndex][0], str(e)))
-            self.next_button.setEnabled(True)
-        finally:
-            self.videoIndex += 1
-            self._state = self.State.MAIN_VIDEO
+        pass
 
     def getScreenSize(self):
         if sys.platform == 'darwin':
