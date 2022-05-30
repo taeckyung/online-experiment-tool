@@ -156,23 +156,31 @@ class ActivityRecorder(Thread):
         self.mouse_log("mouse,scroll,%d,%d,%d,%d" % (x, y, dx, dy))
 
     def onKeyPress(self, key):
+        print(key)
         if isinstance(key, keyboard.KeyCode):
-            if key in [keyboard.KeyCode.from_char('f'), keyboard.KeyCode.from_char('F'),
-                       keyboard.KeyCode.from_char('ㄹ'),
-                       keyboard.KeyCode.from_char('n'), keyboard.KeyCode.from_char('N'),
-                       keyboard.KeyCode.from_char('ㅜ')]:
+            if key in [keyboard.KeyCode.from_char(1), keyboard.KeyCode.from_char(0)]:
+                self.key_log("key,press,%s" % str(key))
+        elif hasattr(key, 'vk') and 96 <= key.vk <= 105:
+            if key.vk in [96, 97]:
                 self.key_log("key,press,%s" % str(key))
 
     def onKeyRelease(self, key):
         curr_time = time.time()
         if isinstance(key, keyboard.KeyCode):
-            if key in [keyboard.KeyCode.from_char('f'), keyboard.KeyCode.from_char('F'),
-                       keyboard.KeyCode.from_char('ㄹ')]:
+            if key in [keyboard.KeyCode.from_char(1)]:
                 self.queue.put((curr_time, 'y'))
                 sound.play(get_resource("Keyboard.mp3"))
                 self.key_log("key,release,%s" % str(key))
-            elif key in [keyboard.KeyCode.from_char('n'), keyboard.KeyCode.from_char('N'),
-                         keyboard.KeyCode.from_char('ㅜ')]:
+            elif key in [keyboard.KeyCode.from_char(0)]:
+                self.queue.put((curr_time, 'n'))
+                sound.play(get_resource("Keyboard.mp3"))
+                self.key_log("key,release,%s" % str(key))
+        elif hasattr(key, 'vk') and 96 <= key.vk <= 105:  # numpad
+            if key.vk == 97:
+                self.queue.put((curr_time, 'y'))
+                sound.play(get_resource("Keyboard.mp3"))
+                self.key_log("key,release,%s" % str(key))
+            elif key.vk == 96:
                 self.queue.put((curr_time, 'n'))
                 sound.play(get_resource("Keyboard.mp3"))
                 self.key_log("key,release,%s" % str(key))

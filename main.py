@@ -181,9 +181,6 @@ class ExpApp(QMainWindow):
 
         try:
             self.probeRunner.finish(timeout=5.0)
-            self.probeRunner.terminate()
-            self.updater.finish(timeout=1.0)
-            self.updater.terminate()
         except Exception as e:
             self.log(str(e))
 
@@ -195,7 +192,6 @@ class ExpApp(QMainWindow):
 
         try:
             self.probeRunner.finish(timeout=5.0)
-            self.probeRunner.terminate()
         except Exception as e:
             self.log(str(e))
 
@@ -245,8 +241,8 @@ class ExpApp(QMainWindow):
         # taskbar.hide_taskbar()
 
         # Debugging options (Disable camera setting & calibration)
-        self._skip_camera = True
-        self._skip_calib = True
+        self._skip_camera = False
+        self._skip_calib = False
 
         ########### MODIFY HERE! ######################################
         self.videos = []
