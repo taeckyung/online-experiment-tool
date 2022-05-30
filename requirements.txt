@@ -1,9 +1,7 @@
 certifi==2022.5.18.1
 cmake==3.22.4
-dlib @ file:///Users/runner/miniforge3/conda-bld/dlib_1652035186737/work
 imutils==0.5.4
 install==1.3.5
-numpy @ file:///Users/runner/miniforge3/conda-bld/numpy_1653325363988/work
 opencv-contrib-python==4.5.5.64
 opencv-python==4.5.5.64
 pafy==0.5.5
