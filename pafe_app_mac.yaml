@@ -33,22 +33,5 @@ dependencies:
   - xz=5.2.5=hca72f7f_1
   - zlib=1.2.11=h6c3fc93_1014
   - pip:
-    - cmake==3.22.4
-    - imutils==0.5.4
-    - install==1.3.5
-    - opencv-contrib-python==4.5.5.64
-    - opencv-python==4.5.5.64
-    - pafy==0.5.5
-    - playsound==1.3.0
-    - pynput==1.7.6
-    - pyobjc-core==8.5
-    - pyobjc-framework-applicationservices==8.5
-    - pyobjc-framework-cocoa==8.5
-    - pyobjc-framework-quartz==8.5
-    - pyqt5==5.15.6
-    - pyqt5-qt5==5.15.2
-    - pyqt5-sip==12.10.1
-    - six==1.16.0
-    - urlvalidator==0.1
-    - youtube-dl==2021.12.17
+    - -r requirements.txt
 prefix: /Users/sypark0614/opt/anaconda3/envs/attention
