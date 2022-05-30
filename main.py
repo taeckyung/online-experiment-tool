@@ -181,9 +181,7 @@ class ExpApp(QMainWindow):
 
         try:
             self.probeRunner.finish(timeout=5.0)
-            self.probeRunner.terminate()
-            self.updater.finish(timeout=1.0)
-            self.updater.terminate()
+            #self.probeRunner.terminate()
         except Exception as e:
             self.log(str(e))
 
@@ -195,7 +193,7 @@ class ExpApp(QMainWindow):
 
         try:
             self.probeRunner.finish(timeout=5.0)
-            self.probeRunner.terminate()
+            #self.probeRunner.terminate()
         except Exception as e:
             self.log(str(e))
 
@@ -217,7 +215,8 @@ class ExpApp(QMainWindow):
 
         try:
             if sys.platform == "darwin":
-                output_name = os.path.join("../../../", "output_user_%s" % self.user_id.text())
+                #output_name = os.path.join("../../../", "output_user_%s" % self.user_id.text())
+                output_name = os.path.join("./", "output_user_%s" % self.user_id.text())
                 save_idx = 0
                 while os.path.isfile(output_name+".zip"):
                     save_idx += 1
@@ -234,7 +233,7 @@ class ExpApp(QMainWindow):
             self.log(str(e))
 
         self.output.close()
-
+        
         # os.system("start https://forms.gle/1111")
         # taskbar.unhide_taskbar()
         sys.exit(0)
@@ -446,8 +445,8 @@ class ExpApp(QMainWindow):
                     'During the experiment, please avoid moving laptop or touching eyeglasses.\n\n'
                     'During the lecture, you will periodically hear the "beep" sound.\n\n'
                     'When you hear the sound, based on your state JUST BEFORE hearing the sound:\n\n'
-                    '- Press [F]: if you were Focusing (thinking of anything related to the lecture)\n\n'
-                    '- Press [N]: if you were NOT focusing (thinking or doing something unrelated to the lecture)\n\n'
+                    '- Press [1]: if you were Focusing (thinking of anything related to the lecture)\n\n'
+                    '- Press [0]: if you were NOT focusing (thinking or doing something unrelated to the lecture)\n\n'
                     '- DO NOT PRESS: if you cannot decide\n\n'
                     'If you pressed the wrong key, then just press again.\n\n\n'
                     '----------------------------------------------------------------------------------------------------\n\n'
@@ -521,7 +520,7 @@ class ExpApp(QMainWindow):
 
                 vlc_lower_layout.addStretch(1)
 
-                self.probe_text = 'FOCUSED: [F] / NOT FOCUSED: [N] / SKIP: [Space]'
+                self.probe_text = 'FOCUSED: [1] / NOT FOCUSED: [0] / SKIP: [Space]'
                 self.probe_label = QLabel(self.probe_text)
                 font: QFont = self.probe_label.font()
                 font.setFamily('Roboto')
@@ -577,8 +576,8 @@ class ExpApp(QMainWindow):
                 lecture_text = QLabel(
                     'From now, you can minimize the current screen.\n\n\n'
                     '-----------------------------------------IMPORTANT-----------------------------------------\n\n'
-                    '- Press [F]: if you were Focusing (thinking of anything related to the lecture)\n\n'
-                    '- Press [N]: if you were NOT focusing (thinking or doing something unrelated to the lecture)\n\n'
+                    '- Press [1]: if you were Focusing (thinking of anything related to the lecture)\n\n'
+                    '- Press [0]: if you were NOT focusing (thinking or doing something unrelated to the lecture)\n\n'
                     '- DO NOT PRESS: if you cannot decide\n\n'
                     'If you pressed the wrong key, then just press again.\n\n\n'
                     '------------------------------------------IF ENDS------------------------------------------\n\n'

@@ -1,0 +1,54 @@
+name: attention
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - ca-certificates=2022.5.18.1=h033912b_0
+  - certifi=2022.5.18.1=py39h6e9494a_0
+  - dlib=19.24.0=py39h17c293e_0
+  - jpeg=9e=h5eb16cf_1
+  - libblas=3.9.0=14_osx64_openblas
+  - libcblas=3.9.0=14_osx64_openblas
+  - libcxx=14.0.4=hc203e6f_0
+  - libffi=3.3=hb1e8313_2
+  - libgfortran=5.0.0=9_3_0_h6c81a4c_23
+  - libgfortran5=9.3.0=h6c81a4c_23
+  - liblapack=3.9.0=14_osx64_openblas
+  - libopenblas=0.3.20=openmp_hb3cd9ec_0
+  - libpng=1.6.37=h7cec526_2
+  - libzlib=1.2.11=h6c3fc93_1014
+  - llvm-openmp=14.0.4=ha654fa7_0
+  - ncurses=6.3=hca72f7f_2
+  - numpy=1.22.4=py39h677350a_0
+  - openssl=1.1.1o=hfe4f2af_0
+  - pip=21.2.4=py39hecd8cb5_0
+  - python=3.9.12=hdfd78df_0
+  - python_abi=3.9=2_cp39
+  - readline=8.1.2=hca72f7f_1
+  - setuptools=61.2.0=py39hecd8cb5_0
+  - sqlite=3.38.5=hd9f0692_0
+  - tk=8.6.12=h5dbffcc_0
+  - tzdata=2022a=hda174b7_0
+  - wheel=0.37.1=pyhd3eb1b0_0
+  - xz=5.2.5=hca72f7f_1
+  - zlib=1.2.11=h6c3fc93_1014
+  - pip:
+    - cmake==3.22.4
+    - imutils==0.5.4
+    - install==1.3.5
+    - opencv-contrib-python==4.5.5.64
+    - opencv-python==4.5.5.64
+    - pafy==0.5.5
+    - playsound==1.3.0
+    - pynput==1.7.6
+    - pyobjc-core==8.5
+    - pyobjc-framework-applicationservices==8.5
+    - pyobjc-framework-cocoa==8.5
+    - pyobjc-framework-quartz==8.5
+    - pyqt5==5.15.6
+    - pyqt5-qt5==5.15.2
+    - pyqt5-sip==12.10.1
+    - six==1.16.0
+    - urlvalidator==0.1
+    - youtube-dl==2021.12.17
+prefix: /Users/sypark0614/opt/anaconda3/envs/attention
