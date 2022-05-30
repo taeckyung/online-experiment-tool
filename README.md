@@ -19,9 +19,17 @@ We tested our codes under this environment:
    
    2. We share our python environment that contains all required python packages. Please refer to the `./pafe_app.yaml` file.
    
-   3. You can import our environment using Conda:
+   3. You can import our environment using Conda (for Windows):
 
    > $ conda env create -f pafe_app.yaml -n pafe_app
+
+   4. You can import our environment using Conda and pip (for Mac):
+
+   > $ conda env create -f pafe_app_mac.yaml -n pafe_app
+
+   > $ conda activate pafe_app
+
+   > $ pip install -r requirements.txt
 
    Reference: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
 

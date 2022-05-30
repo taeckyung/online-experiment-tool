@@ -16,7 +16,7 @@ from utils import sound
 
 def get_resource(name):
     if sys.platform == "darwin":
-        return name
+        return "./resources/" + name
     else:
         return "./resources/" + name
 
