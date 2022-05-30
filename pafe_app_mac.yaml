@@ -32,6 +32,4 @@ dependencies:
   - wheel=0.37.1=pyhd3eb1b0_0
   - xz=5.2.5=hca72f7f_1
   - zlib=1.2.11=h6c3fc93_1014
-  - pip:
-    - -r requirements.txt
 prefix: /Users/sypark0614/opt/anaconda3/envs/attention

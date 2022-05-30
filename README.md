@@ -24,10 +24,12 @@ We tested our codes under this environment:
    > $ conda env create -f pafe_app.yaml -n pafe_app
 
    4. You can import our environment using Conda and pip (for Mac):
+		
+		conda env create -f pafe_app_mac.yaml -n pafe_app
 
-   > $ conda env create -f pafe_app_mac.yaml -n pafe_app
+		conda activate pafe_app
 
-   > $ pip install -r requirements.txt
+		pip install -r requirements.txt
 
    Reference: https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
 
