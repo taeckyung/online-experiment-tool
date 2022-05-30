@@ -156,7 +156,6 @@ class ActivityRecorder(Thread):
         self.mouse_log("mouse,scroll,%d,%d,%d,%d" % (x, y, dx, dy))
 
     def onKeyPress(self, key):
-        print(key)
         if isinstance(key, keyboard.KeyCode):
             if key in [keyboard.KeyCode.from_char(1), keyboard.KeyCode.from_char(0)]:
                 self.key_log("key,press,%s" % str(key))
